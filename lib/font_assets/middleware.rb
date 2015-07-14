@@ -22,20 +22,19 @@ module FontAssets
 
     def call(env)
       @ssl_request = Rack::Request.new(env).scheme == "https"
-      # intercept the "preflight" request
-      if env["REQUEST_METHOD"] == "OPTIONS"
-        if ext = extension(env["PATH_INFO"]) and font_asset?(ext)
+      if ext = extension(env["PATH_INFO"]) and font_asset?(ext)
+        # intercept the "preflight" request
+        if env["REQUEST_METHOD"] == "OPTIONS"
           return [200, access_control_headers, []]
         else
-          return @app.call(env)
+          code, headers, body = @app.call(env)
+          set_headers! headers, body, ext
+          [code, headers, body]
         end
       else
-        code, headers, body = @app.call(env)
-        set_headers! headers, body, env["PATH_INFO"]
-        [code, headers, body]
+        @app.call(env)
       end
     end
-
 
     private
 
@@ -73,11 +72,9 @@ module FontAssets
       @mime_types.font? extension(path)
     end
 
-    def set_headers!(headers, body, path)
-      if ext = extension(path) and font_asset?(ext)
-        headers.merge!(access_control_headers)
-        headers.merge!('Content-Type' => mime_type(ext)) if headers['Content-Type']
-      end
+    def set_headers!(headers, body, ext)
+      headers.merge!(access_control_headers)
+      headers.merge!('Content-Type' => mime_type(ext)) if headers['Content-Type']
     end
 
     def mime_type(extension)
